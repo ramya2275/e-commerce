@@ -1,7 +1,7 @@
 # Stage 1: Build application using .NET 10 SDK
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
-
+#Adding a new comment for testing git
 # Copy project files for layer caching
 COPY Directory.Build.props ./
 COPY src/Gateways/ApiGateway/ApiGateway.csproj ./src/Gateways/ApiGateway/

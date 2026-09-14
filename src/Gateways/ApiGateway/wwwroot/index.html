@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CloudShop | C# Microservices & Kubernetes Dashboard</title>
+  <meta name="description" content="Interactive dashboard demonstrating C# .NET 10 microservices, REST APIs, YARP API Gateway, and Kubernetes orchestration.">
+  
+  <!-- Modern Typography from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Sticky Glassmorphic Header -->
+  <header class="header-glass">
+    <div class="header-content">
+      <div class="brand-section">
+        <div class="logo-badge">⚡</div>
+        <div>
+          <h1 class="brand-title">CloudShop Microservices</h1>
+          <span class="brand-sub">.NET 10 • REST API • YARP Gateway • Kubernetes</span>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs" aria-label="Main Navigation">
+        <button class="nav-tab active" data-tab="catalog" id="tab-catalog">
+          <span>📦</span> Catalog
+        </button>
+        <button class="nav-tab" data-tab="orders" id="tab-orders">
+          <span>📋</span> Orders
+        </button>
+        <button class="nav-tab" data-tab="architecture" id="tab-architecture">
+          <span>☸️</span> Architecture & K8s
+        </button>
+      </nav>
+
+      <!-- Header Actions -->
+      <div class="header-actions">
+        <button class="cart-toggle-btn" id="cart-toggle-btn" aria-label="View Shopping Cart">
+          <span>🛒</span> Cart
+          <span class="cart-counter" id="cart-counter">0</span>
+          <span id="cart-total-nav" style="font-weight: 700; color: #ffffff;">$0.00</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-container">
+
+    <!-- Cluster Observability Bar -->
+    <section class="observability-bar" aria-label="Microservices Cluster Health">
+      <div class="service-nodes-group">
+        <div class="service-node">
+          <span class="pulse-dot" id="dot-gateway"></span>
+          <div>
+            <div class="node-label">API Gateway (YARP)</div>
+            <div class="node-meta" id="meta-gateway">Checking...</div>
+          </div>
+        </div>
+
+        <div class="service-node">
+          <span class="pulse-dot" id="dot-product"></span>
+          <div>
+            <div class="node-label">Product Microservice</div>
+            <div class="node-meta" id="meta-product">Checking...</div>
+          </div>
+        </div>
+
+        <div class="service-node">
+          <span class="pulse-dot" id="dot-order"></span>
+          <div>
+            <div class="node-label">Order Microservice</div>
+            <div class="node-meta" id="meta-order">Checking...</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="health-refresh-btn" id="refresh-health-btn" title="Ping all Kubernetes liveness probes">
+        ⟳ Refresh Health
+      </button>
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 1: PRODUCT CATALOG                                         -->
+    <!-- ============================================================== -->
+    <section id="catalog-view">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2>Product Catalog</h2>
+          <p>Real-time catalog synchronized with <code>ProductApi</code>. Add items to cart to place orders.</p>
+        </div>
+
+        <div class="catalog-actions">
+          <div class="search-input-wrap">
+            <span class="search-icon">🔍</span>
+            <input 
+              type="text" 
+              id="product-search" 
+              class="search-input" 
+              placeholder="Search products..." 
+              autocomplete="off"
+            />
+          </div>
+
+          <button class="btn-primary" id="add-product-btn">
+            + New Product
+          </button>
+        </div>
+      </div>
+
+      <!-- Products Grid -->
+      <div class="products-grid" id="products-grid">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 2: ORDERS HISTORY                                          -->
+    <!-- ============================================================== -->
+    <section id="orders-view" style="display: none;">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2>Placed Orders</h2>
+          <p>Orders processed by <code>OrderApi</code> with stock verification and rollback compensation.</p>
+        </div>
+      </div>
+
+      <div class="orders-table-container">
+        <table class="orders-table">
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Customer</th>
+              <th>Items</th>
+              <th>Total Amount</th>
+              <th>Placed At</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="orders-table-body">
+            <!-- Rendered dynamically by app.js -->
+          </tbody>
+        </table>
+
+        <div id="orders-empty-state" style="text-align: center; padding: 48px; color: var(--text-muted); display: none;">
+          <p style="font-size: 2.2rem; margin-bottom: 8px;">📦</p>
+          <p>No orders have been placed yet.</p>
+          <p style="font-size: 0.85rem; margin-top: 6px;">Go to the Catalog tab and create an order to see it tracked here.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 3: ARCHITECTURE & KUBERNETES TOPOGRAPHY                   -->
+    <!-- ============================================================== -->
+    <section id="architecture-view" style="display: none;">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2>System Architecture & Kubernetes Topography</h2>
+          <p>End-to-end breakdown of routing, inter-service HTTP calls, and deployment manifests.</p>
+        </div>
+      </div>
+
+      <div class="architecture-container">
+        <!-- Flow Card -->
+        <div class="arch-card">
+          <h3 style="margin-bottom: 8px;">Cluster Request Topology</h3>
+          <p style="color: var(--text-secondary); font-size: 0.88rem;">
+            Traffic reaches the cluster via Ingress or NodePort <code>:30500</code> and routes through the YARP Gateway.
+          </p>
+
+          <div class="arch-diagram-flow">
+            <div class="arch-node highlight">
+              <div>
+                <div style="font-weight: 700; color: var(--accent-cyan-light);">Client / Browser</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">Origin: http://localhost:5000</div>
+              </div>
+              <span class="k8s-badge">External Traffic</span>
+            </div>
+
+            <div style="text-align: center; color: var(--accent-cyan); font-weight: bold;">↓ Proxy Routing</div>
+
+            <div class="arch-node">
+              <div>
+                <div style="font-weight: 700;">API Gateway (YARP)</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">Deployment (2 Replicas) • NodePort 30500</div>
+              </div>
+              <span class="k8s-badge">gateway-service:5000</span>
+            </div>
+
+            <div style="display: flex; justify-content: space-around; color: var(--accent-violet); font-weight: bold;">
+              <span>↓ /api/products/*</span>
+              <span>↓ /api/orders/*</span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="arch-node">
+                <div>
+                  <div style="font-weight: 700;">ProductApi</div>
+                  <div style="font-size: 0.78rem; color: var(--text-muted);">Port 8080 • ClusterIP</div>
+                </div>
+                <span class="k8s-badge">product-service</span>
+              </div>
+
+              <div class="arch-node">
+                <div>
+                  <div style="font-weight: 700;">OrderApi</div>
+                  <div style="font-size: 0.78rem; color: var(--text-muted);">Port 8081 • ClusterIP</div>
+                </div>
+                <span class="k8s-badge">order-service</span>
+              </div>
+            </div>
+
+            <div style="background: rgba(139, 92, 246, 0.08); border: 1px dashed rgba(139, 92, 246, 0.3); border-radius: var(--radius-sm); padding: 12px; font-size: 0.82rem; color: #c4b5fd;">
+              <strong>Inter-Service Communication:</strong> OrderApi calls ProductApi internally using Kubernetes DNS <code>http://product-service:8080/api/products/{id}/stock</code> to validate and reserve stock.
+            </div>
+          </div>
+        </div>
+
+        <!-- Kubernetes Highlights Card -->
+        <div class="arch-card">
+          <h3 style="margin-bottom: 8px;">Key Kubernetes Capabilities</h3>
+          <p style="color: var(--text-secondary); font-size: 0.88rem; margin-bottom: 16px;">
+            Production patterns configured in <code>k8s/</code> manifests.
+          </p>
+
+          <ul style="list-style: none; display: flex; flex-direction: column; gap: 14px; font-size: 0.88rem;">
+            <li style="display: flex; gap: 10px;">
+              <span style="color: var(--accent-cyan);">✓</span>
+              <div>
+                <strong>Liveness & Readiness Probes:</strong>
+                <div style="color: var(--text-muted); font-size: 0.8rem;">Every container exposes <code>/health/live</code> and <code>/health/ready</code> for automatic restart and traffic routing.</div>
+              </div>
+            </li>
+            <li style="display: flex; gap: 10px;">
+              <span style="color: var(--accent-emerald);">✓</span>
+              <div>
+                <strong>Horizontal Pod Autoscaling (HPA):</strong>
+                <div style="color: var(--text-muted); font-size: 0.8rem;">Configured in <code>06-hpa.yaml</code> to autoscale pods between 2 and 5 replicas at 70% CPU load.</div>
+              </div>
+            </li>
+            <li style="display: flex; gap: 10px;">
+              <span style="color: var(--accent-violet);">✓</span>
+              <div>
+                <strong>Service Discovery via CoreDNS:</strong>
+                <div style="color: var(--text-muted); font-size: 0.8rem;">Decoupled inter-service communication without hardcoded IP addresses.</div>
+              </div>
+            </li>
+            <li style="display: flex; gap: 10px;">
+              <span style="color: var(--accent-amber);">✓</span>
+              <div>
+                <strong>ConfigMaps & Environment Decoupling:</strong>
+                <div style="color: var(--text-muted); font-size: 0.8rem;">Microservices configs externalized in <code>01-configmap.yaml</code>.</div>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============================================================== -->
+  <!-- Cart Slide-Over Drawer                                         -->
+  <!-- ============================================================== -->
+  <div class="drawer-overlay" id="drawer-overlay"></div>
+  <aside class="cart-drawer" id="cart-drawer" aria-label="Shopping Cart Drawer">
+    <div class="drawer-header">
+      <h3 style="font-size: 1.2rem;">Your Shopping Cart</h3>
+      <button class="drawer-close-btn" id="drawer-close-btn" aria-label="Close cart">✕</button>
+    </div>
+
+    <div class="cart-items-list" id="cart-items-list">
+      <!-- Dynamic cart items -->
+    </div>
+
+    <div class="drawer-footer">
+      <div id="checkout-alert" style="display: none; background: rgba(244, 63, 94, 0.15); border: 1px solid var(--accent-rose); border-radius: var(--radius-sm); padding: 10px; margin-bottom: 14px; font-size: 0.82rem; color: #fecdd3;"></div>
+
+      <div class="checkout-input-group">
+        <label for="checkout-email">Customer Email Address</label>
+        <input 
+          type="email" 
+          id="checkout-email" 
+          class="checkout-input" 
+          placeholder="e.g., developer@enterprise.com" 
+          value="developer@enterprise.com"
+          required
+        />
+      </div>
+
+      <div class="drawer-summary-row">
+        <span>Total Amount:</span>
+        <span id="cart-total-price" style="color: var(--accent-cyan-light);">$0.00</span>
+      </div>
+
+      <button class="btn-primary checkout-btn" id="checkout-btn" disabled>
+        Confirm & Place Order
+      </button>
+    </div>
+  </aside>
+
+  <!-- ============================================================== -->
+  <!-- Modal: Create New Product                                      -->
+  <!-- ============================================================== -->
+  <div class="modal-overlay" id="add-product-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Create New Product</h3>
+        <button class="drawer-close-btn" id="close-product-modal-btn">✕</button>
+      </div>
+
+      <form id="new-product-form">
+        <div class="form-group">
+          <label for="new-product-name">Product Name *</label>
+          <input type="text" id="new-product-name" class="form-control" placeholder="e.g. Wireless Ergonomic Mouse" required>
+        </div>
+
+        <div class="form-group">
+          <label for="new-product-desc">Description</label>
+          <textarea id="new-product-desc" class="form-control" rows="3" placeholder="Features, specifications, details..."></textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div class="form-group">
+            <label for="new-product-price">Price ($) *</label>
+            <input type="number" id="new-product-price" class="form-control" step="0.01" min="0.01" placeholder="99.99" required>
+          </div>
+
+          <div class="form-group">
+            <label for="new-product-stock">Stock Quantity *</label>
+            <input type="number" id="new-product-stock" class="form-control" min="0" placeholder="25" required>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+          <button type="button" class="btn-secondary" onclick="closeAddProductModal()">Cancel</button>
+          <button type="submit" class="btn-primary">Create Product</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <!-- Application Script -->
+  <script src="js/app.js"></script>
+</body>
+</html>

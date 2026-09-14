@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - 00-namespace.yaml
+  - 01-configmap.yaml
+  - 02-product-service.yaml
+  - 03-order-service.yaml
+  - 04-gateway-service.yaml
+  - 05-ingress.yaml
+  - 06-hpa.yaml

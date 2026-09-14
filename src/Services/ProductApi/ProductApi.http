@@ -1,0 +1,16 @@
+@Gateway_HostAddress = http://localhost:5000
+@ProductApi_HostAddress = http://localhost:5101
+
+### 1. View Frontend Dashboard in Web Browser:
+# Open http://localhost:5000 in your browser!
+
+### 2. Get All Products (via API Gateway)
+GET {{Gateway_HostAddress}}/api/products
+Accept: application/json
+
+### 3. Get All Products (Direct Backend)
+GET {{ProductApi_HostAddress}}/api/products
+Accept: application/json
+
+### 4. Health Check
+GET {{ProductApi_HostAddress}}/health/live

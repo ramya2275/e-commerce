@@ -1,0 +1,66 @@
+services:
+  product-api:
+    container_name: product-microservice
+    build:
+      context: .
+      dockerfile: src/Services/ProductApi/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+    networks:
+      - microservices-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  order-api:
+    container_name: order-microservice
+    build:
+      context: .
+      dockerfile: src/Services/OrderApi/Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8081
+      - Services__ProductApi__Url=http://product-api:8080
+    depends_on:
+      product-api:
+        condition: service_started
+    networks:
+      - microservices-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  api-gateway:
+    container_name: gateway-microservice
+    build:
+      context: .
+      dockerfile: src/Gateways/ApiGateway/Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5000
+      - ReverseProxy__Clusters__product-cluster__Destinations__destination1__Address=http://product-api:8080
+      - ReverseProxy__Clusters__order-cluster__Destinations__destination1__Address=http://order-api:8081
+    depends_on:
+      product-api:
+        condition: service_started
+      order-api:
+        condition: service_started
+    networks:
+      - microservices-net
+
+networks:
+  microservices-net:
+    driver: bridge

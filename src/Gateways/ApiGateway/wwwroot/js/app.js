@@ -9,6 +9,7 @@ const state = {
   products: [],
   orders: [],
   cart: new Map(), // productId -> { product, quantity }
+  appliedCoupon: null, // { code, discountAmount, discountPercentage, minOrder, message }
   activeTab: 'catalog',
   isCheckingHealth: false
 };
@@ -31,6 +32,17 @@ const DOM = {
   drawerCloseBtn: document.getElementById('drawer-close-btn'),
   cartItemsList: document.getElementById('cart-items-list'),
   cartTotalPrice: document.getElementById('cart-total-price'),
+  subtotalRow: document.getElementById('subtotal-row'),
+  cartSubtotalPrice: document.getElementById('cart-subtotal-price'),
+  discountRow: document.getElementById('discount-row'),
+  discountLabel: document.getElementById('discount-label'),
+  cartDiscountPrice: document.getElementById('cart-discount-price'),
+  couponInput: document.getElementById('coupon-input'),
+  applyCouponBtn: document.getElementById('apply-coupon-btn'),
+  couponTagWrap: document.getElementById('coupon-tag-wrap'),
+  couponTagCode: document.getElementById('coupon-tag-code'),
+  removeCouponBtn: document.getElementById('remove-coupon-btn'),
+  couponFeedback: document.getElementById('coupon-feedback'),
   checkoutEmail: document.getElementById('checkout-email'),
   checkoutBtn: document.getElementById('checkout-btn'),
   checkoutAlert: document.getElementById('checkout-alert'),
@@ -47,9 +59,11 @@ const DOM = {
   dotGateway: document.getElementById('dot-gateway'),
   dotProduct: document.getElementById('dot-product'),
   dotOrder: document.getElementById('dot-order'),
+  dotCoupon: document.getElementById('dot-coupon'),
   metaGateway: document.getElementById('meta-gateway'),
   metaProduct: document.getElementById('meta-product'),
   metaOrder: document.getElementById('meta-order'),
+  metaCoupon: document.getElementById('meta-coupon'),
   // Add Product Modal
   addProductModal: document.getElementById('add-product-modal'),
   closeProductModalBtn: document.getElementById('close-product-modal-btn'),
@@ -165,6 +179,7 @@ async function submitOrder(customerEmail) {
 
   const payload = {
     customerEmail: customerEmail.trim(),
+    couponCode: state.appliedCoupon ? state.appliedCoupon.code : null,
     items: items
   };
 
@@ -184,6 +199,9 @@ async function submitOrder(customerEmail) {
     if (res.status === 201 && json.success) {
       showToast('Order confirmed! Stock decremented.', 'success');
       state.cart.clear();
+      state.appliedCoupon = null;
+      if (DOM.couponFeedback) DOM.couponFeedback.style.display = 'none';
+      if (DOM.couponInput) DOM.couponInput.value = '';
       updateCartUI();
       closeCartDrawer();
       await fetchProducts(DOM.searchInput.value);
@@ -330,6 +348,23 @@ async function checkClusterHealth() {
     DOM.metaOrder.textContent = 'Offline';
   }
 
+  // 4. Coupon Service Health (via Gateway routing)
+  const t3 = performance.now();
+  try {
+    const cRes = await fetch(`${state.apiBase}/api/coupons`);
+    const cLatency = Math.round(performance.now() - t3);
+    if (cRes.ok) {
+      if (DOM.dotCoupon) DOM.dotCoupon.className = 'pulse-dot';
+      if (DOM.metaCoupon) DOM.metaCoupon.textContent = `Healthy (${cLatency}ms)`;
+    } else {
+      if (DOM.dotCoupon) DOM.dotCoupon.className = 'pulse-dot offline';
+      if (DOM.metaCoupon) DOM.metaCoupon.textContent = 'Degraded';
+    }
+  } catch {
+    if (DOM.dotCoupon) DOM.dotCoupon.className = 'pulse-dot offline';
+    if (DOM.metaCoupon) DOM.metaCoupon.textContent = 'Offline';
+  }
+
   state.isCheckingHealth = false;
   DOM.refreshHealthBtn.textContent = '⟳ Refresh Health';
 }
@@ -426,6 +461,13 @@ function renderOrders(orders) {
         <td style="color: var(--text-secondary); max-width: 320px;" title="${itemsSummary}">
           ${itemsSummary}
         </td>
+        <td>
+          ${order.couponCode ? `
+            <span class="coupon-badge">🏷️ ${escapeHtml(order.couponCode)} (-$${order.discountAmount.toFixed(2)})</span>
+          ` : `
+            <span style="color: var(--text-muted); font-size: 0.8rem;">—</span>
+          `}
+        </td>
         <td style="font-weight: 700; color: #ffffff;">$${order.totalAmount.toFixed(2)}</td>
         <td style="color: var(--text-muted); font-size: 0.8rem;">${dateFormatted}</td>
         <td>
@@ -491,11 +533,12 @@ function updateCartQty(productId, delta) {
 
 function updateCartUI() {
   let totalCount = 0;
-  let totalPrice = 0;
+  let subtotal = 0;
 
   DOM.cartItemsList.innerHTML = '';
 
   if (state.cart.size === 0) {
+    state.appliedCoupon = null;
     DOM.cartItemsList.innerHTML = `
       <div style="text-align: center; color: var(--text-muted); padding: 40px 0;">
         <p style="font-size: 2rem; margin-bottom: 8px;">🛒</p>
@@ -505,7 +548,7 @@ function updateCartUI() {
   } else {
     state.cart.forEach((item, productId) => {
       totalCount += item.quantity;
-      totalPrice += item.quantity * item.product.price;
+      subtotal += item.quantity * item.product.price;
 
       const itemCard = document.createElement('div');
       itemCard.className = 'cart-item-card';
@@ -524,13 +567,133 @@ function updateCartUI() {
     });
   }
 
+  // Calculate discount if coupon is applied
+  let discountAmount = 0;
+  if (state.appliedCoupon && subtotal > 0) {
+    if (state.appliedCoupon.minOrder && subtotal < state.appliedCoupon.minOrder) {
+      showToast(`Coupon removed: Subtotal fell below $${state.appliedCoupon.minOrder.toFixed(2)}`, 'error');
+      state.appliedCoupon = null;
+    } else if (state.appliedCoupon.discountPercentage) {
+      discountAmount = Math.round(subtotal * (state.appliedCoupon.discountPercentage / 100) * 100) / 100;
+    } else {
+      discountAmount = state.appliedCoupon.discountAmount || 0;
+    }
+  }
+
+  const finalTotal = Math.max(0, subtotal - discountAmount);
+
   DOM.cartCounter.textContent = totalCount;
-  DOM.cartTotalNav.textContent = `$${totalPrice.toFixed(2)}`;
-  DOM.cartTotalPrice.textContent = `$${totalPrice.toFixed(2)}`;
+  DOM.cartTotalNav.textContent = `$${finalTotal.toFixed(2)}`;
+  DOM.cartTotalPrice.textContent = `$${finalTotal.toFixed(2)}`;
   DOM.checkoutBtn.disabled = totalCount === 0;
+
+  // Coupon UI Breakdown Display
+  if (state.appliedCoupon && discountAmount > 0) {
+    if (DOM.subtotalRow) {
+      DOM.subtotalRow.style.display = 'flex';
+      DOM.cartSubtotalPrice.textContent = `$${subtotal.toFixed(2)}`;
+    }
+    if (DOM.discountRow) {
+      DOM.discountRow.style.display = 'flex';
+      DOM.discountLabel.textContent = `Discount (${state.appliedCoupon.code}):`;
+      DOM.cartDiscountPrice.textContent = `-$${discountAmount.toFixed(2)}`;
+    }
+    if (DOM.couponTagWrap) {
+      DOM.couponTagWrap.style.display = 'block';
+      DOM.couponTagCode.textContent = `${state.appliedCoupon.code} (-$${discountAmount.toFixed(2)})`;
+    }
+    if (DOM.couponInput) DOM.couponInput.value = '';
+    if (DOM.couponFeedback) DOM.couponFeedback.style.display = 'none';
+  } else {
+    if (DOM.subtotalRow) DOM.subtotalRow.style.display = 'none';
+    if (DOM.discountRow) DOM.discountRow.style.display = 'none';
+    if (DOM.couponTagWrap) DOM.couponTagWrap.style.display = 'none';
+  }
 
   // Re-render product card button disabled states
   renderProducts(state.products);
+}
+
+// Apply Coupon Code
+async function applyCoupon() {
+  const code = DOM.couponInput ? DOM.couponInput.value.trim().toUpperCase() : '';
+  if (!code) {
+    showToast('Please enter a coupon code.', 'error');
+    if (DOM.couponInput) DOM.couponInput.focus();
+    return;
+  }
+
+  let subtotal = 0;
+  state.cart.forEach(item => {
+    subtotal += item.quantity * item.product.price;
+  });
+
+  if (subtotal === 0) {
+    showToast('Add items to your cart before applying a coupon.', 'error');
+    return;
+  }
+
+  DOM.applyCouponBtn.disabled = true;
+  DOM.applyCouponBtn.textContent = '...';
+
+  try {
+    const res = await fetch(`${state.apiBase}/api/coupons/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code, orderTotal: subtotal })
+    });
+
+    const json = await res.json();
+    if (res.ok && json.success && json.data && json.data.isValid) {
+      // Lookup percentage and minimum order amount
+      let discountPct = null;
+      let minOrder = null;
+      try {
+        const cRes = await fetch(`${state.apiBase}/api/coupons/${code}`);
+        const cJson = await cRes.json();
+        if (cRes.ok && cJson.success && cJson.data) {
+          discountPct = cJson.data.discountPercentage;
+          minOrder = cJson.data.minimumOrderAmount;
+        }
+      } catch {}
+
+      state.appliedCoupon = {
+        code: code,
+        discountAmount: json.data.discountAmount,
+        discountPercentage: discountPct,
+        minOrder: minOrder,
+        message: json.message
+      };
+
+      DOM.couponFeedback.textContent = `✓ ${json.message || 'Coupon applied successfully!'}`;
+      DOM.couponFeedback.className = 'coupon-feedback success';
+      DOM.couponFeedback.style.display = 'block';
+      showToast(`Coupon "${code}" applied!`, 'success');
+      updateCartUI();
+    } else {
+      const errorMsg = json.errors?.[0] || json.message || 'Invalid or expired coupon code.';
+      DOM.couponFeedback.textContent = `✕ ${errorMsg}`;
+      DOM.couponFeedback.className = 'coupon-feedback error';
+      DOM.couponFeedback.style.display = 'block';
+      showToast(errorMsg, 'error');
+    }
+  } catch (err) {
+    DOM.couponFeedback.textContent = `✕ Unable to validate coupon: ${err.message}`;
+    DOM.couponFeedback.className = 'coupon-feedback error';
+    DOM.couponFeedback.style.display = 'block';
+    showToast('Failed to validate coupon.', 'error');
+  } finally {
+    DOM.applyCouponBtn.disabled = false;
+    DOM.applyCouponBtn.textContent = 'Apply';
+  }
+}
+
+function removeCoupon() {
+  state.appliedCoupon = null;
+  if (DOM.couponFeedback) DOM.couponFeedback.style.display = 'none';
+  if (DOM.couponInput) DOM.couponInput.value = '';
+  showToast('Coupon removed.', 'info');
+  updateCartUI();
 }
 
 function openCartDrawer() {
@@ -638,11 +801,37 @@ DOM.newProductForm.addEventListener('submit', (e) => {
 // Health Refresh
 DOM.refreshHealthBtn.addEventListener('click', checkClusterHealth);
 
+// Coupon Listeners
+if (DOM.applyCouponBtn) {
+  DOM.applyCouponBtn.addEventListener('click', applyCoupon);
+}
+if (DOM.removeCouponBtn) {
+  DOM.removeCouponBtn.addEventListener('click', removeCoupon);
+}
+if (DOM.couponInput) {
+  DOM.couponInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      applyCoupon();
+    }
+  });
+}
+
+function quickApplyCoupon(code) {
+  if (DOM.couponInput) {
+    DOM.couponInput.value = code;
+  }
+  applyCoupon();
+}
+
 // Make functions globally accessible for inline onclick handlers
 window.addToCart = addToCart;
 window.updateCartQty = updateCartQty;
 window.cancelOrder = cancelOrder;
 window.adjustStock = adjustStock;
+window.applyCoupon = applyCoupon;
+window.removeCoupon = removeCoupon;
+window.quickApplyCoupon = quickApplyCoupon;
 
 // Initial Load
 document.addEventListener('DOMContentLoaded', () => {

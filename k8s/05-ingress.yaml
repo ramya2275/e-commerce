@@ -25,6 +25,13 @@ spec:
             name: order-service
             port:
               number: 8081
+      - path: /api/coupons(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: coupon-service
+            port:
+              number: 8082
       - path: /()(.*)
         pathType: ImplementationSpecific
         backend:

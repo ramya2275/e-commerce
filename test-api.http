@@ -2,6 +2,7 @@
 @gatewayUrl = http://localhost:5000
 @productServiceUrl = http://localhost:5101
 @orderServiceUrl = http://localhost:5102
+@couponServiceUrl = http://localhost:5103
 
 ### 1. Gateway Status & Information
 GET {{gatewayUrl}}/
@@ -93,3 +94,51 @@ Content-Type: application/json
 ### 12. Direct Order Service Readiness Probe
 # (Shows dependency check status for Product Service)
 GET {{orderServiceUrl}}/health/ready
+
+### =============================================================
+### Coupon Microservice via Gateway (:5000) or Direct (:5103)
+### =============================================================
+
+### 13. Get all coupons (via API Gateway)
+GET {{gatewayUrl}}/api/coupons
+Accept: application/json
+
+### 14. Get coupon by code (WELCOME10)
+GET {{gatewayUrl}}/api/coupons/WELCOME10
+Accept: application/json
+
+### 15. Validate coupon with order amount
+POST {{gatewayUrl}}/api/coupons/validate
+Content-Type: application/json
+
+{
+  "code": "WELCOME10",
+  "orderTotal": 149.50
+}
+
+### 16. Create a new coupon code
+POST {{gatewayUrl}}/api/coupons
+Content-Type: application/json
+
+{
+  "code": "FLASH30",
+  "discountPercentage": 30,
+  "minimumOrderAmount": 75,
+  "expiryDate": "2026-12-31T23:59:59Z"
+}
+
+### 17. Place Order with Coupon Code applied
+POST {{gatewayUrl}}/api/orders
+Content-Type: application/json
+
+{
+  "customerEmail": "discount.hunter@example.com",
+  "couponCode": "WELCOME10",
+  "items": [
+    {
+      "productId": "22222222-2222-2222-2222-222222222222",
+      "quantity": 1
+    }
+  ]
+}
+

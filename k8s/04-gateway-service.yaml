@@ -19,8 +19,8 @@ spec:
     spec:
       containers:
       - name: gateway-api
-        image: microservices/api-gateway:latest
-        imagePullPolicy: IfNotPresent
+        image: commerceregistry12345.azurecr.io/api-gateway:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 5000
           name: http
@@ -36,6 +36,8 @@ spec:
           value: "http://product-service.microservices-demo.svc.cluster.local:8080"
         - name: ReverseProxy__Clusters__order-cluster__Destinations__destination1__Address
           value: "http://order-service.microservices-demo.svc.cluster.local:8081"
+        - name: ReverseProxy__Clusters__coupon-cluster__Destinations__destination1__Address
+          value: "http://coupon-service.microservices-demo.svc.cluster.local:8082"
         resources:
           requests:
             cpu: "100m"
@@ -68,12 +70,15 @@ metadata:
   labels:
     app: gateway-service
 spec:
-  type: NodePort
+  type: LoadBalancer
   ports:
-  - port: 5000
+  - port: 80
     targetPort: 5000
-    nodePort: 30500
     protocol: TCP
     name: http
+  - port: 5000
+    targetPort: 5000
+    protocol: TCP
+    name: gateway
   selector:
     app: gateway-service

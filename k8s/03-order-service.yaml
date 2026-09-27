@@ -19,8 +19,8 @@ spec:
     spec:
       containers:
       - name: order-api
-        image: microservices/order-api:latest
-        imagePullPolicy: IfNotPresent
+        image: commerceregistry12345.azurecr.io/order-api:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8081
           name: http
@@ -34,6 +34,8 @@ spec:
           value: "http://+:8081"
         - name: Services__ProductApi__Url
           value: "http://product-service.microservices-demo.svc.cluster.local:8080"
+        - name: Services__CouponApi__Url
+          value: "http://coupon-service.microservices-demo.svc.cluster.local:8082"
         resources:
           requests:
             cpu: "100m"

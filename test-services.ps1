@@ -7,6 +7,28 @@ Write-Host " Testing C# Microservices Architecture & Frontend Dashboard" -Foregr
 Write-Host " Gateway URL: $GatewayUrl" -ForegroundColor Gray
 Write-Host "==========================================================" -ForegroundColor Cyan
 
+Write-Host "Checking if Gateway ($GatewayUrl) is ready..." -ForegroundColor Yellow
+$gatewayReady = $false
+for ($i = 1; $i -le 15; $i++) {
+    try {
+        $check = Invoke-WebRequest -Uri "$GatewayUrl/health/live" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+        if ($check.StatusCode -eq 200) {
+            $gatewayReady = $true
+            Write-Host "Gateway is online and responding! Starting test suite..." -ForegroundColor Green
+            break
+        }
+    } catch {
+        Start-Sleep -Seconds 1
+    }
+}
+
+if (-not $gatewayReady) {
+    Write-Host "`n[ERROR] Unable to connect to Gateway at $GatewayUrl." -ForegroundColor Red
+    Write-Host "Please ensure your services are running in a separate terminal using: .\run-local.ps1" -ForegroundColor Yellow
+    Write-Host "(Keep that terminal window open while running tests!)`n" -ForegroundColor Yellow
+    exit 1
+}
+
 function Test-Endpoint {
     param(
         [string]$Name,
@@ -77,7 +99,33 @@ $productsRes = Test-Endpoint -Name "Get All Products" -Uri "$GatewayUrl/api/prod
 # 5. Search Products
 Test-Endpoint -Name "Search Products ('Keyboard')" -Uri "$GatewayUrl/api/products?search=Keyboard"
 
-# 6. Place New Order
+# 6. Coupon Catalog (via Gateway)
+Test-Endpoint -Name "Get All Coupons" -Uri "$GatewayUrl/api/coupons"
+
+# 7. Get Coupon by Code ('WELCOME10')
+Test-Endpoint -Name "Get Coupon by Code ('WELCOME10')" -Uri "$GatewayUrl/api/coupons/WELCOME10"
+
+# 8. Validate Coupon via Gateway
+$validateCouponBody = @{
+    code = "WELCOME10"
+    orderTotal = 150.00
+}
+Test-Endpoint -Name "Validate Coupon ('WELCOME10' on $150 total)" -Method "POST" -Uri "$GatewayUrl/api/coupons/validate" -Body $validateCouponBody
+
+# 9. Place New Order with Coupon Code
+$orderWithCouponBody = @{
+    customerEmail = "coupon.buyer@enterprise.com"
+    couponCode = "WELCOME10"
+    items = @(
+        @{
+            productId = "22222222-2222-2222-2222-222222222222"
+            quantity = 1
+        }
+    )
+}
+$createdOrderWithCoupon = Test-Endpoint -Name "Place Order with Coupon 'WELCOME10' (Applies Discount)" -Method "POST" -Uri "$GatewayUrl/api/orders" -Body $orderWithCouponBody -ExpectedStatus 201
+
+# 10. Place New Order (Standard without Coupon)
 $orderBody = @{
     customerEmail = "developer@enterprise.com"
     items = @(
@@ -93,10 +141,10 @@ $orderBody = @{
 }
 $createdOrder = Test-Endpoint -Name "Place Order (Decrements Product Stock)" -Method "POST" -Uri "$GatewayUrl/api/orders" -Body $orderBody -ExpectedStatus 201
 
-# 7. List Orders
+# 11. List Orders
 Test-Endpoint -Name "List All Orders" -Uri "$GatewayUrl/api/orders"
 
-# 8. Test Insufficient Stock Error
+# 12. Test Insufficient Stock Error
 $invalidOrder = @{
     customerEmail = "developer@enterprise.com"
     items = @(
@@ -107,6 +155,19 @@ $invalidOrder = @{
     )
 }
 Test-Endpoint -Name "Test Insufficient Stock (Expected 400 Bad Request)" -Method "POST" -Uri "$GatewayUrl/api/orders" -Body $invalidOrder -ExpectedStatus 400
+
+# 13. Test Expired Coupon Error
+$expiredCouponOrder = @{
+    customerEmail = "developer@enterprise.com"
+    couponCode = "EXPIRED50"
+    items = @(
+        @{
+            productId = "22222222-2222-2222-2222-222222222222"
+            quantity = 1
+        }
+    )
+}
+Test-Endpoint -Name "Test Expired Coupon (Expected 400 Bad Request)" -Method "POST" -Uri "$GatewayUrl/api/orders" -Body $expiredCouponOrder -ExpectedStatus 400
 
 Write-Host "`n==========================================================" -ForegroundColor Cyan
 Write-Host " Test run finished!" -ForegroundColor Cyan

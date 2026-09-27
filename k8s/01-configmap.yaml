@@ -10,3 +10,4 @@ data:
   # Internal Kubernetes cluster DNS addresses
   PRODUCT_SERVICE_URL: "http://product-service:8080"
   ORDER_SERVICE_URL: "http://order-service:8081"
+  COUPON_SERVICE_URL: "http://coupon-service:8082"

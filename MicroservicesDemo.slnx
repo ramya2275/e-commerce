@@ -7,7 +7,11 @@
     <Project Path="src/Gateways/ApiGateway/ApiGateway.csproj" />
   </Folder>
   <Folder Name="/src/Services/">
+    <Project Path="src/Services/CouponApi/CouponApi.csproj" />
     <Project Path="src/Services/OrderApi/OrderApi.csproj" />
     <Project Path="src/Services/ProductApi/ProductApi.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MicroservicesDemo.UnitTests/MicroservicesDemo.UnitTests.csproj" />
   </Folder>
 </Solution>

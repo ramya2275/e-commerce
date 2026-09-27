@@ -12,7 +12,7 @@ services:
     networks:
       - microservices-net
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/live || exit 1"]
+      test: [ "CMD-SHELL", "curl -f http://localhost:8080/health/live || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -29,13 +29,35 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8081
       - Services__ProductApi__Url=http://product-api:8080
+      - Services__CouponApi__Url=http://coupon-api:8082
     depends_on:
       product-api:
+        condition: service_started
+      coupon-api:
         condition: service_started
     networks:
       - microservices-net
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8081/health/live || exit 1"]
+      test: [ "CMD-SHELL", "curl -f http://localhost:8081/health/live || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  coupon-api:
+    container_name: coupon-microservice
+    build:
+      context: .
+      dockerfile: src/Services/CouponApi/Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8082
+    networks:
+      - microservices-net
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8082/health/live || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -53,10 +75,13 @@ services:
       - ASPNETCORE_URLS=http://+:5000
       - ReverseProxy__Clusters__product-cluster__Destinations__destination1__Address=http://product-api:8080
       - ReverseProxy__Clusters__order-cluster__Destinations__destination1__Address=http://order-api:8081
+      - ReverseProxy__Clusters__coupon-cluster__Destinations__destination1__Address=http://coupon-api:8082
     depends_on:
       product-api:
         condition: service_started
       order-api:
+        condition: service_started
+      coupon-api:
         condition: service_started
     networks:
       - microservices-net

@@ -14,7 +14,9 @@ public record OrderDto(
     List<OrderItemDto> Items,
     decimal TotalAmount,
     string Status,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    string? CouponCode = null,
+    decimal DiscountAmount = 0
 );
 
 public record CreateOrderItemRequest(
@@ -24,5 +26,8 @@ public record CreateOrderItemRequest(
 
 public record CreateOrderRequest(
     string CustomerEmail,
-    List<CreateOrderItemRequest> Items
+    List<CreateOrderItemRequest> Items,
+    string? CouponCode = null,
+    decimal DiscountAmount = 0
 );
+

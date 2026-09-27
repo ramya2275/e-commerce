@@ -32,6 +32,7 @@ app.MapGet("/api/gateway/info", () => Results.Ok(new
     {
         new { Route = "/api/products", Downstream = "Product Microservice (Catalog & Stock)" },
         new { Route = "/api/orders", Downstream = "Order Microservice (Orders & Processing)" },
+        new { Route = "/api/coupons", Downstream = "Coupon Microservice (Discounts & Validation)" },
         new { Route = "/health/live", Downstream = "Gateway Liveness Probe" },
         new { Route = "/health/ready", Downstream = "Gateway Readiness Probe" }
     }

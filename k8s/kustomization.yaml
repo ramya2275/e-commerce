@@ -6,6 +6,7 @@ resources:
   - 01-configmap.yaml
   - 02-product-service.yaml
   - 03-order-service.yaml
+  - 03b-coupon-service.yaml
   - 04-gateway-service.yaml
   - 05-ingress.yaml
   - 06-hpa.yaml

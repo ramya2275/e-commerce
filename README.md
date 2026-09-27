@@ -169,9 +169,48 @@ kubectl get hpa -n microservices-demo
 
 ---
 
+### Option 4: Deploy to Azure Kubernetes Service (AKS)
+
+Deploy the entire architecture to an Azure Kubernetes Service cluster backed by Azure Container Registry (ACR).
+
+#### 1. One-Click Automated Deployment
+Run the automated deployment script:
+```powershell
+.\deploy-aks.ps1 -ResourceGroup "Commerce-Dev-RG" -ClusterName "Commerce-AKS-Cluster" -AcrName "commerceregistry12345"
+```
+
+This script automatically:
+1. Logs into your Azure Container Registry (`commerceregistry12345.azurecr.io`).
+2. Builds multi-stage Docker images for `ProductApi`, `OrderApi`, `CouponApi`, and `ApiGateway`.
+3. Pushes the images to ACR.
+4. Connects `kubectl` context to `Commerce-AKS-Cluster`.
+5. Applies all manifests via Kustomize (`kubectl apply -k k8s/`).
+6. Waits for pod rollout across all 4 deployments.
+7. Waits for the Azure LoadBalancer public IP and outputs the live URLs.
+
+#### 2. Accessing the Live Cluster
+- **Web Dashboard & API Gateway**: `http://<AZURE_PUBLIC_IP>` (Port 80)
+- **Direct Port Access**: `http://<AZURE_PUBLIC_IP>:5000`
+- **Verify with Test Suite**:
+  ```powershell
+  .\test-services.ps1 -GatewayUrl "http://<AZURE_PUBLIC_IP>"
+  ```
+
+---
+
 ## 🧪 Testing & Verification
 
-### 1. Automated PowerShell Test Script
+### 1. Unit Testing Suite (xUnit, FluentAssertions & Moq)
+A comprehensive suite of **65 unit tests** verifying core domain logic, thread-safety, stock reservation, compensating transactions (saga-style rollbacks), coupon calculations, and resilient HTTP clients across all services:
+```powershell
+dotnet test MicroservicesDemo.sln
+```
+Or run with detailed per-test output:
+```powershell
+dotnet test MicroservicesDemo.sln --logger "console;verbosity=normal"
+```
+
+### 2. Automated PowerShell End-to-End Test Script
 While the services are running, run:
 ```powershell
 .\test-services.ps1

@@ -19,8 +19,8 @@ spec:
     spec:
       containers:
       - name: product-api
-        image: microservices/product-api:latest
-        imagePullPolicy: IfNotPresent
+        image: commerceregistry12345.azurecr.io/product-api:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
           name: http

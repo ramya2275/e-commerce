@@ -7,12 +7,21 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services
 builder.Services.AddSingleton<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<IOrderService, OrderService>();
 
 // Configure HttpClient for inter-service communication to ProductApi
 var productApiBaseUrl = builder.Configuration["Services:ProductApi:Url"] ?? "http://localhost:5101";
 builder.Services.AddHttpClient<IProductServiceClient, ProductServiceClient>(client =>
 {
     client.BaseAddress = new Uri(productApiBaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
+// Configure HttpClient for inter-service communication to CouponApi
+var couponApiBaseUrl = builder.Configuration["Services:CouponApi:Url"] ?? "http://localhost:5103";
+builder.Services.AddHttpClient<ICouponServiceClient, CouponServiceClient>(client =>
+{
+    client.BaseAddress = new Uri(couponApiBaseUrl);
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 
@@ -77,111 +86,40 @@ ordersGroup.MapGet("/{id:guid}", (Guid id, IOrderRepository repo) =>
 .WithName("GetOrderById")
 .WithSummary("Retrieve a specific order by its unique ID");
 
-// POST /api/orders - Place a new order (interacts with ProductApi microservice)
-ordersGroup.MapPost("/", async (CreateOrderRequest request, IOrderRepository repo, IProductServiceClient productClient, CancellationToken ct) =>
+// POST /api/orders - Place a new order (interacts with ProductApi and CouponApi microservices)
+ordersGroup.MapPost("/", async (CreateOrderRequest request, IOrderService orderService, CancellationToken ct) =>
 {
-    if (string.IsNullOrWhiteSpace(request.CustomerEmail))
+    var (success, order, error, statusCode) = await orderService.CreateOrderAsync(request, ct);
+    if (!success)
     {
-        return Results.BadRequest(ApiResponse<OrderDto>.Fail("Customer email is required."));
-    }
-
-    if (request.Items is null || request.Items.Count == 0)
-    {
-        return Results.BadRequest(ApiResponse<OrderDto>.Fail("Order must contain at least one item."));
-    }
-
-    if (request.Items.Any(i => i.Quantity <= 0))
-    {
-        return Results.BadRequest(ApiResponse<OrderDto>.Fail("Each item quantity must be at least 1."));
-    }
-
-    // Step 1: Pre-validate each product exists and check stock via ProductApi
-    var orderItems = new List<OrderItemDto>();
-    decimal totalAmount = 0;
-
-    foreach (var item in request.Items)
-    {
-        var (success, product, error) = await productClient.GetProductAsync(item.ProductId, ct);
-        if (!success || product is null)
+        return statusCode switch
         {
-            return Results.BadRequest(ApiResponse<OrderDto>.Fail($"Product validation failed: {error}"));
-        }
-
-        if (product.StockQuantity < item.Quantity)
-        {
-            return Results.BadRequest(ApiResponse<OrderDto>.Fail(
-                $"Insufficient stock for product '{product.Name}'. Available: {product.StockQuantity}, Requested: {item.Quantity}"));
-        }
-
-        var itemTotal = product.Price * item.Quantity;
-        totalAmount += itemTotal;
-
-        orderItems.Add(new OrderItemDto(
-            product.Id,
-            product.Name,
-            product.Price,
-            item.Quantity,
-            itemTotal
-        ));
+            StatusCodes.Status400BadRequest => Results.BadRequest(ApiResponse<OrderDto>.Fail(error!)),
+            StatusCodes.Status500InternalServerError => Results.StatusCode(StatusCodes.Status500InternalServerError),
+            _ => Results.BadRequest(ApiResponse<OrderDto>.Fail(error ?? "An error occurred."))
+        };
     }
 
-    // Step 2: Deduct stock via ProductApi
-    var deductedItems = new List<(Guid ProductId, int Quantity)>();
-    foreach (var item in request.Items)
-    {
-        var (success, _, error) = await productClient.UpdateStockAsync(item.ProductId, -item.Quantity, ct);
-        if (!success)
-        {
-            // Rollback previously deducted items (compensating transaction)
-            foreach (var deducted in deductedItems)
-            {
-                await productClient.UpdateStockAsync(deducted.ProductId, deducted.Quantity, ct);
-            }
-
-            return Results.StatusCode(StatusCodes.Status500InternalServerError);
-        }
-
-        deductedItems.Add((item.ProductId, item.Quantity));
-    }
-
-    // Step 3: Record Order
-    var order = new OrderDto(
-        Guid.NewGuid(),
-        request.CustomerEmail,
-        orderItems,
-        totalAmount,
-        "Confirmed",
-        DateTime.UtcNow
-    );
-
-    var created = repo.Create(order);
-    return Results.Created($"/api/orders/{created.Id}", ApiResponse<OrderDto>.Ok(created, "Order placed successfully."));
+    return Results.Created($"/api/orders/{order!.Id}", ApiResponse<OrderDto>.Ok(order, "Order placed successfully."));
 })
 .WithName("CreateOrder")
-.WithSummary("Place a new order and decrement inventory via Product Service");
+.WithSummary("Place a new order, validate optional coupon, and decrement inventory via Product Service");
 
 // POST /api/orders/{id}/cancel - Cancel order and restore product stock
-ordersGroup.MapPost("/{id:guid}/cancel", async (Guid id, IOrderRepository repo, IProductServiceClient productClient, CancellationToken ct) =>
+ordersGroup.MapPost("/{id:guid}/cancel", async (Guid id, IOrderService orderService, CancellationToken ct) =>
 {
-    var order = repo.GetById(id);
-    if (order is null)
+    var (success, order, error, statusCode) = await orderService.CancelOrderAsync(id, ct);
+    if (!success)
     {
-        return Results.NotFound(ApiResponse<OrderDto>.Fail($"Order with ID '{id}' was not found."));
+        return statusCode switch
+        {
+            StatusCodes.Status404NotFound => Results.NotFound(ApiResponse<OrderDto>.Fail(error!)),
+            StatusCodes.Status400BadRequest => Results.BadRequest(ApiResponse<OrderDto>.Fail(error!)),
+            _ => Results.BadRequest(ApiResponse<OrderDto>.Fail(error ?? "An error occurred."))
+        };
     }
 
-    if (order.Status == "Cancelled")
-    {
-        return Results.BadRequest(ApiResponse<OrderDto>.Fail("Order has already been cancelled."));
-    }
-
-    // Restore stock for all items in order
-    foreach (var item in order.Items)
-    {
-        await productClient.UpdateStockAsync(item.ProductId, item.Quantity, ct);
-    }
-
-    var updated = repo.UpdateStatus(id, "Cancelled");
-    return Results.Ok(ApiResponse<OrderDto>.Ok(updated!, "Order cancelled and inventory restored."));
+    return Results.Ok(ApiResponse<OrderDto>.Ok(order!, "Order cancelled and inventory restored."));
 })
 .WithName("CancelOrder")
 .WithSummary("Cancel an existing order and restore product inventory");
